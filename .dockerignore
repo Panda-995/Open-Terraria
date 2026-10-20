@@ -1,0 +1,15 @@
+.git
+.github
+node_modules
+dist
+dist-*
+logs
+tmp
+shots
+mods
+assets-src
+docs
+.gitignore
+*.log
+.env
+.env.*

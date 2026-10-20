@@ -1,0 +1,89 @@
+name: Build and publish Docker image
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Set image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build AMD64 image for smoke test
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: open-terraria:smoke
+          cache-from: type=gha
+      - name: Test AMD64 container
+        shell: bash
+        run: |
+          docker run -d --name open-terraria-amd64 -p 8080:80 open-terraria:smoke
+          docker exec open-terraria-amd64 nginx -t
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/healthz; then break; fi
+            sleep 1
+          done
+          node docker/smoke.mjs http://127.0.0.1:8080
+          docker rm -f open-terraria-amd64
+      - name: Build and publish AMD64 and ARM64
+        id: publish
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=Open Terraria web game. See bundled LICENSE and ASSETS.md for third-party assets.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Verify both published architectures
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        shell: bash
+        run: |
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" --raw > /tmp/open-terraria-manifest.json
+          node -e 'const m=require("/tmp/open-terraria-manifest.json"); for(const arch of ["amd64","arm64"]) if(!m.manifests.some(x=>x.platform.os==="linux"&&x.platform.architecture===arch)) throw new Error("Missing "+arch)'
+          for arch in amd64 arm64; do
+            docker pull --platform "linux/$arch" "$IMAGE@$DIGEST"
+            docker run -d --platform "linux/$arch" --name "open-terraria-$arch" -p 8080:80 "$IMAGE@$DIGEST"
+            docker exec "open-terraria-$arch" nginx -t
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8080/healthz; then break; fi
+              sleep 1
+            done
+            node docker/smoke.mjs http://127.0.0.1:8080
+            docker rm -f "open-terraria-$arch"
+          done
+          echo "Published and verified: $IMAGE@$DIGEST" >> "$GITHUB_STEP_SUMMARY"

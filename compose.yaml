@@ -1,0 +1,7 @@
+services:
+  open-terraria:
+    image: ghcr.io/panda-995/open-terraria:latest
+    container_name: open-terraria
+    ports:
+      - "8080:80"
+    restart: unless-stopped

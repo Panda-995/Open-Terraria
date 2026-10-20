@@ -61,6 +61,10 @@ Agent侧产生了112338条消息，工具调用数量达36815次
 
 ![shot-respack-view](docs/screenshots/shot-respack-view.png)
 
+## Docker 部署
+
+支持 `linux/amd64` 与 `linux/arm64`：详见 [DOCKER.md](DOCKER.md) 和 [compose.yaml](compose.yaml)。
+
 ## 快速开始
 
 ```bash
