@@ -5,3 +5,21 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    depends_on:
+      - open-terraria-sync
+    # 可选：部署方配置文件（令牌/分档）。创建 ./sync-config.js 后取消注释：
+    #   window.SAVE_SYNC_CONFIG = { token: '与 SYNC_TOKEN 一致', slot: 'default' };
+    # volumes:
+    #   - ./sync-config.js:/usr/share/nginx/html/save-sync-config.js:ro
+
+  # 云存档中继：存档文件落在 ./data（卷映射——换浏览器/换电脑经此同步存档）。
+  # compose 服务名必须保持 open-terraria-sync（web 镜像 nginx 按此主机名转发 /sync/）。
+  open-terraria-sync:
+    image: ghcr.io/panda-995/open-terraria-sync:latest
+    container_name: open-terraria-sync
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    # 公网暴露部署时强烈建议启用令牌（浏览器端在 sync-config.js 里配同一值）：
+    # environment:
+    #   SYNC_TOKEN: change-me

@@ -132,5 +132,10 @@
   <div id="game-root"></div>
   <div id="sw-boot-static"><div class="sb-flower"></div></div>
   <script type="module" src="/src/main.ts"></script>
+  <!-- 云存档同步（Panda-995 fork 增强,上游无此文件):public/save-sync.js。
+       开机先摘掉上面的 module 标签,与云端存档清单合并写回 IndexedDB 后再插回
+       放行游戏——游戏读到的存档恒为合并后状态;服务不可达 4s 超时兜底放行。
+       inline/经典脚本解析期执行,module 恒 defer,置于其后仍先运行。 -->
+  <script src="/save-sync.js"></script>
 </body>
 </html>
